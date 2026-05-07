@@ -25,6 +25,7 @@ public sealed class MainWindowViewModel : ReactiveObject
     private string _selectedNoteMode = "per-note";
     private bool _isFixedKeyEnabled;
     private string _fixedKeySpec = "Cmaj";
+    private double _inputGain = 1.0;
     private string _currentNote = "--";
     private string _currentChord = "--";
     private string _currentKey = "--";
@@ -96,6 +97,18 @@ public sealed class MainWindowViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _fixedKeySpec, string.IsNullOrWhiteSpace(value) ? "Cmaj" : value.Trim());
     }
 
+    public double InputGain
+    {
+        get => _inputGain;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _inputGain, Math.Clamp(value, 0.1, 8.0));
+            this.RaisePropertyChanged(nameof(InputGainText));
+        }
+    }
+
+    public string InputGainText => $"{InputGain:F2}x";
+
     public string CurrentNote
     {
         get => _currentNote;
@@ -138,7 +151,8 @@ public sealed class MainWindowViewModel : ReactiveObject
             var runner = new BridgeRunner();
             var args = new List<string>
             {
-                $"--note-mode={SelectedNoteMode}"
+                $"--note-mode={SelectedNoteMode}",
+                $"--gain={InputGain:F2}"
             };
 
             if (IsFixedKeyEnabled)

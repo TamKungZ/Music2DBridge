@@ -19,6 +19,13 @@
                 ItemsSource="{Binding AvailableNoteModes}"
                 SelectedItem="{Binding SelectedNoteMode}"
                 IsEnabled="{Binding IsStopped}" />
+      <TextBlock VerticalAlignment="Center" Text="Gain:" Margin="8,0,0,0" />
+      <Slider Width="120"
+              Minimum="0.1"
+              Maximum="8.0"
+              Value="{Binding InputGain}"
+              IsEnabled="{Binding IsStopped}" />
+      <TextBlock VerticalAlignment="Center" Text="{Binding InputGainText}" />
       <Button Content="+" Width="36"
               Command="{Binding EnableFixedKeyCommand}"
               IsVisible="{Binding ShowFixedKeyAddButton}" />

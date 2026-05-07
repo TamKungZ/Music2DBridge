@@ -41,6 +41,7 @@ internal sealed class BridgeRunner
     {
         var fixedKeyConfig = ParseFixedKeyConfig(args);
         var noteOutputConfig = ParseNoteOutputConfig(args);
+        var gainConfig = ParseGainConfig(args);
 
         MusicAnalyzer.ConfigureFixedKeyFilter(fixedKeyConfig.Enabled, fixedKeyConfig.Root, fixedKeyConfig.IsMinor);
 
@@ -53,6 +54,7 @@ internal sealed class BridgeRunner
         log?.Invoke(noteOutputConfig.Mode == NoteOutputMode.PerNote
             ? $"Note mode: per-note (prefix: {PerNotePrefix})"
             : "Note mode: class (ParamInstNoteClass)");
+        log?.Invoke($"Input gain: {gainConfig.Gain:F2}x");
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var ct = linkedCts.Token;
@@ -75,13 +77,19 @@ internal sealed class BridgeRunner
 
         using var micCapture = CreateMicCapture(log);
 
-        micCapture.DataAvailable += (buffer, bytesRecorded) => MusicAnalyzer.ProcessPcm16Mono(
-            buffer,
-            bytesRecorded,
-            SampleRate,
-            MinPitchHz,
-            MaxPitchHz
-        );
+        var gainBuffer = new byte[SampleRate * sizeof(short)];
+        micCapture.DataAvailable += (buffer, bytesRecorded) =>
+        {
+            if (gainConfig.Gain != 1.0)
+            {
+                EnsureBufferSize(ref gainBuffer, bytesRecorded);
+                ApplyGainPcm16Mono(buffer, gainBuffer, bytesRecorded, gainConfig.Gain);
+                MusicAnalyzer.ProcessPcm16Mono(gainBuffer, bytesRecorded, SampleRate, MinPitchHz, MaxPitchHz);
+                return;
+            }
+
+            MusicAnalyzer.ProcessPcm16Mono(buffer, bytesRecorded, SampleRate, MinPitchHz, MaxPitchHz);
+        };
 
         micCapture.Start();
         log?.Invoke("Connected and recording.");
@@ -206,6 +214,55 @@ internal sealed class BridgeRunner
         };
 
         return new NoteOutputConfig(resolvedMode);
+    }
+
+    private static GainConfig ParseGainConfig(string[] args)
+    {
+        string? gainRaw = null;
+        foreach (var arg in args)
+        {
+            if (arg.StartsWith("--gain=", StringComparison.OrdinalIgnoreCase))
+            {
+                gainRaw = arg["--gain=".Length..];
+                break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(gainRaw))
+        {
+            gainRaw = Environment.GetEnvironmentVariable("M2D_GAIN");
+        }
+
+        if (!double.TryParse(gainRaw, out var gain))
+        {
+            gain = 1.0;
+        }
+
+        gain = Math.Clamp(gain, 0.1, 8.0);
+        return new GainConfig(gain);
+    }
+
+    private static void EnsureBufferSize(ref byte[] buffer, int requiredBytes)
+    {
+        if (buffer.Length >= requiredBytes)
+        {
+            return;
+        }
+
+        buffer = new byte[requiredBytes];
+    }
+
+    private static void ApplyGainPcm16Mono(byte[] source, byte[] destination, int bytesRecorded, double gain)
+    {
+        for (var i = 0; i < bytesRecorded; i += 2)
+        {
+            short sample = BitConverter.ToInt16(source, i);
+            var amplified = (int)Math.Round(sample * gain);
+            amplified = Math.Clamp(amplified, short.MinValue, short.MaxValue);
+            short s16 = (short)amplified;
+            destination[i] = (byte)(s16 & 0xFF);
+            destination[i + 1] = (byte)((s16 >> 8) & 0xFF);
+        }
     }
 
     private static double[] BuildNotePresence(MusicalState state)
@@ -386,6 +443,7 @@ internal sealed class BridgeRunner
 
     private readonly record struct FixedKeyConfig(bool Enabled, int Root, bool IsMinor);
     private readonly record struct NoteOutputConfig(NoteOutputMode Mode);
+    private readonly record struct GainConfig(double Gain);
     private readonly record struct ParameterDefinition(string Id, double Min, double Max, double DefaultValue, string Explanation);
 
     private enum NoteOutputMode
