@@ -25,18 +25,24 @@ jobs:
             os: windows-latest
             rid: win-x64
             kind: windows
+            timeout: 20
           - label: linux-x64
             os: ubuntu-22.04
             rid: linux-x64
             kind: linux
+            timeout: 20
           - label: macos-x64
             os: macos-13
             rid: osx-x64
             kind: macos
+            timeout: 2
           - label: macos-arm64
             os: macos-14
             rid: osx-arm64
             kind: macos
+            timeout: 20
+
+    timeout-minutes: ${{ matrix.timeout }}
 
     steps:
       - name: Checkout
