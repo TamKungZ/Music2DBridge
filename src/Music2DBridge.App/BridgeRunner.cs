@@ -27,7 +27,7 @@ internal sealed class BridgeRunner
     private const string ParamChordType = "ParamInstChordType";
     private const string ParamKeyRoot = "ParamInstKeyRoot";
     private const string ParamKeyMode = "ParamInstKeyMode";
-    private const string DefaultPerNotePrefix = "ParamInstNote";
+    private const string PerNotePrefix = "ParamInstNote";
 
     private static readonly string AppConfigDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -51,7 +51,7 @@ internal sealed class BridgeRunner
         );
 
         log?.Invoke(noteOutputConfig.Mode == NoteOutputMode.PerNote
-            ? $"Note mode: per-note (prefix: {noteOutputConfig.Prefix})"
+            ? $"Note mode: per-note (prefix: {PerNotePrefix})"
             : "Note mode: class (ParamInstNoteClass)");
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -63,7 +63,7 @@ internal sealed class BridgeRunner
         };
 
         await vts.ConnectAsync(new Uri("ws://127.0.0.1:8001"), ct);
-        await vts.AuthenticateAsync(PluginName, PluginDeveloper, ct);
+        await vts.AuthenticateAsync(PluginName, PluginDeveloper, LoadPluginIconBase64(), ct);
         log?.Invoke($"Auth token path: {TokenPath}");
 
         foreach (var definition in BuildParameterDefinitions(noteOutputConfig))
@@ -125,7 +125,7 @@ internal sealed class BridgeRunner
                     var notePresence = BuildNotePresence(state);
                     for (var i = 0; i < 12; i++)
                     {
-                        parameters.Add(($"{noteOutputConfig.Prefix}{NoteParamSuffixes[i]}", notePresence[i], 1.0));
+                        parameters.Add(($"{PerNotePrefix}{NoteParamSuffixes[i]}", notePresence[i], 1.0));
                     }
                 }
                 else
@@ -181,19 +181,11 @@ internal sealed class BridgeRunner
     private static NoteOutputConfig ParseNoteOutputConfig(string[] args)
     {
         string? mode = null;
-        string? prefix = null;
-
         foreach (var arg in args)
         {
             if (arg.StartsWith("--note-mode=", StringComparison.OrdinalIgnoreCase))
             {
                 mode = arg["--note-mode=".Length..];
-                continue;
-            }
-
-            if (arg.StartsWith("--note-params-prefix=", StringComparison.OrdinalIgnoreCase))
-            {
-                prefix = arg["--note-params-prefix=".Length..];
             }
         }
 
@@ -218,14 +210,7 @@ internal sealed class BridgeRunner
             _ => NoteOutputMode.Class
         };
 
-        if (string.IsNullOrWhiteSpace(prefix))
-        {
-            prefix = Environment.GetEnvironmentVariable("M2D_NOTE_PARAMS_PREFIX");
-        }
-
-        var resolvedPrefix = string.IsNullOrWhiteSpace(prefix) ? DefaultPerNotePrefix : prefix.Trim();
-
-        return new NoteOutputConfig(resolvedMode, resolvedPrefix);
+        return new NoteOutputConfig(resolvedMode);
     }
 
     private static double[] BuildNotePresence(MusicalState state)
@@ -278,7 +263,7 @@ internal sealed class BridgeRunner
         {
             for (var i = 0; i < 12; i++)
             {
-                yield return new ParameterDefinition($"{noteOutputConfig.Prefix}{NoteParamSuffixes[i]}", 0.0, 1.0, 0.0, "Per-note presence");
+                yield return new ParameterDefinition($"{PerNotePrefix}{NoteParamSuffixes[i]}", 0.0, 1.0, 0.0, "Per-note presence");
             }
             yield break;
         }
@@ -356,13 +341,31 @@ internal sealed class BridgeRunner
         return true;
     }
 
+    private static string LoadPluginIconBase64()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var outputIconPath = Path.Combine(baseDirectory, "icon-256.png");
+        if (File.Exists(outputIconPath))
+        {
+            return Convert.ToBase64String(File.ReadAllBytes(outputIconPath));
+        }
+
+        var sourceIconPath = Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "assets", "icon-256.png"));
+        if (!File.Exists(sourceIconPath))
+        {
+            return string.Empty;
+        }
+
+        return Convert.ToBase64String(File.ReadAllBytes(sourceIconPath));
+    }
+
     private static string FormatKey(int root, bool isMinor)
     {
         return NoteNames[((root % 12) + 12) % 12] + (isMinor ? " minor" : " major");
     }
 
     private readonly record struct FixedKeyConfig(bool Enabled, int Root, bool IsMinor);
-    private readonly record struct NoteOutputConfig(NoteOutputMode Mode, string Prefix);
+    private readonly record struct NoteOutputConfig(NoteOutputMode Mode);
     private readonly record struct ParameterDefinition(string Id, double Min, double Max, double DefaultValue, string Explanation);
 
     private enum NoteOutputMode

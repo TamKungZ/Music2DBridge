@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.ReactiveUI;
 using Music2DBridge.App;
+using System.Runtime.InteropServices;
 
 internal sealed class Program
 {
@@ -9,6 +10,8 @@ internal sealed class Program
     {
         if (ShouldRunCli(args))
         {
+            PrepareCliConsole();
+
             using var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (_, e) =>
             {
@@ -30,6 +33,25 @@ internal sealed class Program
     {
         return args.Any(a => a.Equals("--cli", StringComparison.OrdinalIgnoreCase));
     }
+
+    private static void PrepareCliConsole()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        const int AttachParentProcess = -1;
+        _ = AttachConsole(AttachParentProcess) || AllocConsole();
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllocConsole();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AttachConsole(int dwProcessId);
 
     public static AppBuilder BuildAvaloniaApp()
     {

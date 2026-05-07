@@ -14,7 +14,7 @@ public sealed class VtsClient : IAsyncDisposable
         await _ws.ConnectAsync(endpoint, ct);
     }
 
-    public async Task AuthenticateAsync(string pluginName, string pluginDeveloper, CancellationToken ct)
+    public async Task AuthenticateAsync(string pluginName, string pluginDeveloper, string pluginIconBase64, CancellationToken ct)
     {
         string? token = null;
 
@@ -32,7 +32,7 @@ public sealed class VtsClient : IAsyncDisposable
         {
             pluginName,
             pluginDeveloper,
-            pluginIcon = ""
+            pluginIcon = pluginIconBase64
         });
 
         await SendJsonAsync(tokenRequest, ct);

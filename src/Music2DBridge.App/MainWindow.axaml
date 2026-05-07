@@ -23,7 +23,7 @@
           <TextBlock Text="CLI Usage" FontWeight="Bold" />
           <TextBlock TextWrapping="Wrap" Text="Run same executable in terminal mode:" />
           <TextBlock Text="Music2DBridge --cli --note-mode=class" />
-          <TextBlock Text="Music2DBridge --cli --note-mode=per-note --note-params-prefix=ParamInstNote" />
+          <TextBlock Text="Music2DBridge --cli --note-mode=per-note" />
           <TextBlock Margin="0,8,0,0" Text="Mode class: ParamInstNoteClass = 0..11" />
           <TextBlock Text="Mode per-note: ParamInstNote[C/Cs/D/.../B] = 0..1" />
         </StackPanel>
