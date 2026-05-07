@@ -95,6 +95,21 @@ public sealed class VtsClient : IAsyncDisposable
         using var _ = await ReceiveJsonAsync(ct);
     }
 
+    public async Task EnsureParameterAsync(string parameterId, double min, double max, double defaultValue, string explanation, CancellationToken ct)
+    {
+        var request = Envelope("ParameterCreationRequest", new
+        {
+            parameterName = parameterId,
+            explanation,
+            min,
+            max,
+            defaultValue
+        });
+
+        await SendJsonAsync(request, ct);
+        using var _ = await ReceiveJsonAsync(ct);
+    }
+
     private object Envelope(string messageType, object data) => new
     {
         apiName = "VTubeStudioPublicAPI",

@@ -46,6 +46,14 @@ dotnet build Music2DBridge.sln
 dotnet run --project src/Music2DBridge.App/Music2DBridge.App.csproj
 ```
 
+Default launch mode is desktop UI (Avalonia).
+
+To run in terminal/CLI mode from cmd/PowerShell:
+
+```bash
+dotnet run --project src/Music2DBridge.App/Music2DBridge.App.csproj -- --cli
+```
+
 At first run:
 
 1. App connects to `ws://127.0.0.1:8001`
@@ -57,10 +65,24 @@ At first run:
 %LocalAppData%\TamKungZ_\Music2DBridge\vts-token.txt
 ```
 
-## Publish (Single File EXE)
+## Publish (Single File)
+
+Windows:
 
 ```bash
-dotnet publish src/Music2DBridge.App/Music2DBridge.App.csproj -c Release
+dotnet publish src/Music2DBridge.App/Music2DBridge.App.csproj -c Release -r win-x64
+```
+
+macOS (Intel):
+
+```bash
+dotnet publish src/Music2DBridge.App/Music2DBridge.App.csproj -c Release -r osx-x64
+```
+
+macOS (Apple Silicon):
+
+```bash
+dotnet publish src/Music2DBridge.App/Music2DBridge.App.csproj -c Release -r osx-arm64
 ```
 
 Output (default):
