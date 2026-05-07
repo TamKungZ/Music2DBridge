@@ -111,6 +111,10 @@ jobs:
 
           Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $pfxPassword | Out-Null
 
+          $cerPath = Join-Path $env:RUNNER_TEMP "music2d-selfsign.cer"
+          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
+          Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+
           & $signtool sign /fd SHA256 /f $pfxPath /p $pfxPasswordPlain /tr http://timestamp.digicert.com /td SHA256 $exePath
           if ($LASTEXITCODE -ne 0) {
             throw "signtool sign failed"
