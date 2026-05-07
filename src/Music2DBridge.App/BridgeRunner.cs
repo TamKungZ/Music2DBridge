@@ -43,6 +43,7 @@ internal sealed class BridgeRunner
         var noteOutputConfig = ParseNoteOutputConfig(args);
         var gainConfig = ParseGainConfig(args);
         var gateConfig = ParseGateConfig(args);
+        var audioInputConfig = ParseAudioInputConfig(args);
 
         MusicAnalyzer.ConfigureFixedKeyFilter(fixedKeyConfig.Enabled, fixedKeyConfig.Root, fixedKeyConfig.IsMinor);
 
@@ -57,6 +58,7 @@ internal sealed class BridgeRunner
             : "Note mode: class (ParamInstNoteClass)");
         log?.Invoke($"Input gain: {gainConfig.Gain:F2}x");
         log?.Invoke($"Noise gate: {gateConfig.Threshold:F3}");
+        log?.Invoke($"Input device: {(audioInputConfig.DeviceId.Equals(AudioInputDiscovery.DefaultDeviceId, StringComparison.OrdinalIgnoreCase) ? "System Default" : audioInputConfig.DeviceId)}");
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var ct = linkedCts.Token;
@@ -77,7 +79,7 @@ internal sealed class BridgeRunner
 
         log?.Invoke("Custom parameters ensured.");
 
-        using var micCapture = CreateMicCapture(log);
+        using var micCapture = CreateMicCapture(audioInputConfig, log);
 
         var gainBuffer = new byte[SampleRate * sizeof(short)];
         micCapture.DataAvailable += (buffer, bytesRecorded) =>
@@ -268,6 +270,32 @@ internal sealed class BridgeRunner
 
         gate = Math.Clamp(gate, 0.0, 0.08);
         return new GateConfig(gate);
+    }
+
+    private static AudioInputConfig ParseAudioInputConfig(string[] args)
+    {
+        string? deviceId = null;
+
+        foreach (var arg in args)
+        {
+            if (arg.StartsWith("--input-device=", StringComparison.OrdinalIgnoreCase))
+            {
+                deviceId = arg["--input-device=".Length..];
+                break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            deviceId = Environment.GetEnvironmentVariable("M2D_INPUT_DEVICE");
+        }
+
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            deviceId = AudioInputDiscovery.DefaultDeviceId;
+        }
+
+        return new AudioInputConfig(deviceId.Trim());
     }
 
     private static MusicalState ApplyNoiseGate(MusicalState state, double threshold)
@@ -466,8 +494,23 @@ internal sealed class BridgeRunner
         return Convert.ToBase64String(ms.ToArray());
     }
 
-    private static IMicCapture CreateMicCapture(Action<string>? log)
+    private static IMicCapture CreateMicCapture(AudioInputConfig audioInputConfig, Action<string>? log)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var wasapi = new WasapiMicCapture(SampleRate, Channels, BitsPerSample, 30, audioInputConfig.DeviceId);
+                log?.Invoke("Audio backend: WASAPI shared (Windows)");
+                log?.Invoke("WASAPI shared mode allows using the same input in other apps (including ASIO hosts via shared routing)." );
+                return wasapi;
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"Audio backend: WASAPI init failed ({ex.Message}), fallback to OpenAL/NAudio");
+            }
+        }
+
         try
         {
             var openAl = new OpenAlMicCapture(SampleRate, 30);
@@ -477,12 +520,12 @@ internal sealed class BridgeRunner
         catch (DllNotFoundException) when (OperatingSystem.IsWindows())
         {
             log?.Invoke("Audio backend: OpenAL unavailable, fallback to NAudio (Windows)");
-            return new NAudioMicCapture(SampleRate, Channels, BitsPerSample, 30);
+            return new NAudioMicCapture(SampleRate, Channels, BitsPerSample, 30, 0);
         }
         catch (Exception ex) when (OperatingSystem.IsWindows())
         {
             log?.Invoke($"Audio backend: OpenAL init failed ({ex.Message}), fallback to NAudio (Windows)");
-            return new NAudioMicCapture(SampleRate, Channels, BitsPerSample, 30);
+            return new NAudioMicCapture(SampleRate, Channels, BitsPerSample, 30, 0);
         }
     }
 
@@ -495,6 +538,7 @@ internal sealed class BridgeRunner
     private readonly record struct NoteOutputConfig(NoteOutputMode Mode);
     private readonly record struct GainConfig(double Gain);
     private readonly record struct GateConfig(double Threshold);
+    private readonly record struct AudioInputConfig(string DeviceId);
     private readonly record struct ParameterDefinition(string Id, double Min, double Max, double DefaultValue, string Explanation);
 
     private enum NoteOutputMode

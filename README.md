@@ -149,6 +149,16 @@ Examples:
 
 Accepted key formats include major/minor suffixes (`maj`, `major`, `min`, `minor`) and sharps/flats (`C#`, `Bb`, etc.).
 
+## Audio Input Device
+
+- GUI: choose `Input` from the top control bar.
+- CLI argument: `--input-device=<device-id>`
+- Environment variable: `M2D_INPUT_DEVICE=<device-id>`
+- Default behavior: `System Default` (uses the computer default capture device)
+
+On Windows, capture uses WASAPI shared mode first, so one microphone/interface can be used by multiple applications at the same time.
+This also works well when you are running guitar software in an ASIO host and need Music2DBridge to share the same input path.
+
 ## License
 
 This project uses a custom source-available commercial license.

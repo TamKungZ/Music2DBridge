@@ -19,6 +19,7 @@ public sealed class MainWindowViewModel : ReactiveObject
     ];
 
     private readonly StringBuilder _log = new();
+    private readonly IReadOnlyList<AudioInputDevice> _audioInputDevices;
     private CancellationTokenSource? _runCts;
     private bool _isRunning;
     private string _statusText = "Idle";
@@ -32,9 +33,11 @@ public sealed class MainWindowViewModel : ReactiveObject
     private string _currentKey = "--";
     private string _currentPitch = "0.0 Hz";
     private string _currentEnergy = "0.000";
+    private string _selectedInputDeviceId = AudioInputDiscovery.DefaultDeviceId;
 
     public MainWindowViewModel()
     {
+        _audioInputDevices = AudioInputDiscovery.ListCaptureDevices();
         StartCommand = ReactiveCommand.CreateFromTask(StartAsync, this.WhenAnyValue(x => x.IsStopped));
         StopCommand = ReactiveCommand.Create(Stop, this.WhenAnyValue(x => x.IsRunning));
         EnableFixedKeyCommand = ReactiveCommand.Create(EnableFixedKey, this.WhenAnyValue(x => x.IsStopped));
@@ -49,6 +52,14 @@ public sealed class MainWindowViewModel : ReactiveObject
     public ReactiveCommand<Unit, Unit> DisableFixedKeyCommand { get; }
     public IReadOnlyList<string> AvailableNoteModes => UiNoteModes;
     public IReadOnlyList<string> AvailableFixedKeys => UiFixedKeys;
+    public IReadOnlyList<AudioInputDevice> AvailableInputDevices => _audioInputDevices;
+
+    public string SelectedInputDeviceId
+    {
+        get => _selectedInputDeviceId;
+        set => this.RaiseAndSetIfChanged(ref _selectedInputDeviceId,
+            string.IsNullOrWhiteSpace(value) ? AudioInputDiscovery.DefaultDeviceId : value);
+    }
 
     public bool IsRunning
     {
@@ -166,7 +177,8 @@ public sealed class MainWindowViewModel : ReactiveObject
             {
                 $"--note-mode={SelectedNoteMode}",
                 $"--gain={InputGain:F2}",
-                $"--gate={NoiseGate:F3}"
+                $"--gate={NoiseGate:F3}",
+                $"--input-device={SelectedInputDeviceId}"
             };
 
             if (IsFixedKeyEnabled)

@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Music2DBridge.App.MainWindow"
         Title="Music2DBridge"
-        Width="1080"
+        Width="1512"
         Height="744"
         MinWidth="760"
         MinHeight="500">
@@ -33,6 +33,13 @@
               Value="{Binding NoiseGate}"
               IsEnabled="{Binding IsStopped}" />
       <TextBlock VerticalAlignment="Center" Text="{Binding NoiseGateText}" />
+      <TextBlock VerticalAlignment="Center" Text="Input:" Margin="8,0,0,0" />
+      <ComboBox Width="220"
+                ItemsSource="{Binding AvailableInputDevices}"
+                DisplayMemberBinding="{Binding DisplayName}"
+                SelectedValueBinding="{Binding Id}"
+                SelectedValue="{Binding SelectedInputDeviceId}"
+                IsEnabled="{Binding IsStopped}" />
       <Button Content="+" Width="36"
               Command="{Binding EnableFixedKeyCommand}"
               IsVisible="{Binding ShowFixedKeyAddButton}" />
