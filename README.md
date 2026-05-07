@@ -1,4 +1,4 @@
-# Music2DBridge
+# Music2DBridge VTS
 
 Music2DBridge is an independent third-party C# bridge for VTube Studio.
 It captures microphone audio, estimates musical information (note/chord/key), and injects mapped values into VTube Studio parameters through the WebSocket API.
