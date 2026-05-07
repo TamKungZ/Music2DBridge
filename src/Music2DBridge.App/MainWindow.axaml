@@ -51,9 +51,24 @@
       </Border>
 
       <Border Grid.Column="1" BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="8">
-        <StackPanel>
+        <StackPanel Spacing="10">
+          <Border BorderBrush="#4A4A4A" BorderThickness="1" Padding="10" CornerRadius="6">
+            <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+              <TextBlock Text="Note" FontWeight="Bold" />
+              <TextBlock Grid.Column="1" Text="{Binding CurrentNote}" FontSize="16" FontWeight="Bold" />
+              <TextBlock Grid.Column="2" Text="Chord" FontWeight="Bold" />
+              <TextBlock Grid.Column="3" Text="{Binding CurrentChord}" FontSize="16" FontWeight="Bold" />
+              <TextBlock Grid.Column="4" Text="Key" FontWeight="Bold" />
+              <TextBlock Grid.Column="5" Text="{Binding CurrentKey}" FontSize="16" FontWeight="Bold" />
+
+              <TextBlock Grid.Row="1" Text="Pitch" FontWeight="Bold" />
+              <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CurrentPitch}" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Text="Energy" FontWeight="Bold" />
+              <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding CurrentEnergy}" />
+            </Grid>
+          </Border>
           <TextBlock Text="Runtime Log" FontWeight="Bold" Margin="0,0,0,8" />
-          <TextBox Text="{Binding LogText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" Height="460" />
+          <TextBox Text="{Binding LogText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" Height="360" />
         </StackPanel>
       </Border>
     </Grid>

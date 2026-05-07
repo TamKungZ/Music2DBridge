@@ -2,6 +2,8 @@ using System.Text;
 using ReactiveUI;
 using System.Reactive;
 using System.Collections.Generic;
+using Avalonia.Threading;
+using Music2DBridge.Core;
 
 namespace Music2DBridge.App;
 
@@ -23,6 +25,11 @@ public sealed class MainWindowViewModel : ReactiveObject
     private string _selectedNoteMode = "per-note";
     private bool _isFixedKeyEnabled;
     private string _fixedKeySpec = "Cmaj";
+    private string _currentNote = "--";
+    private string _currentChord = "--";
+    private string _currentKey = "--";
+    private string _currentPitch = "0.0 Hz";
+    private string _currentEnergy = "0.000";
 
     public MainWindowViewModel()
     {
@@ -89,6 +96,36 @@ public sealed class MainWindowViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _fixedKeySpec, string.IsNullOrWhiteSpace(value) ? "Cmaj" : value.Trim());
     }
 
+    public string CurrentNote
+    {
+        get => _currentNote;
+        private set => this.RaiseAndSetIfChanged(ref _currentNote, value);
+    }
+
+    public string CurrentChord
+    {
+        get => _currentChord;
+        private set => this.RaiseAndSetIfChanged(ref _currentChord, value);
+    }
+
+    public string CurrentKey
+    {
+        get => _currentKey;
+        private set => this.RaiseAndSetIfChanged(ref _currentKey, value);
+    }
+
+    public string CurrentPitch
+    {
+        get => _currentPitch;
+        private set => this.RaiseAndSetIfChanged(ref _currentPitch, value);
+    }
+
+    public string CurrentEnergy
+    {
+        get => _currentEnergy;
+        private set => this.RaiseAndSetIfChanged(ref _currentEnergy, value);
+    }
+
     private async Task StartAsync()
     {
         _runCts = new CancellationTokenSource();
@@ -109,7 +146,7 @@ public sealed class MainWindowViewModel : ReactiveObject
                 args.Add($"--fixed-key={FixedKeySpec}");
             }
 
-            await runner.RunAsync(args.ToArray(), AppendLog, _runCts.Token);
+            await runner.RunAsync(args.ToArray(), AppendLog, UpdateLiveState, _runCts.Token);
         }
         catch (Exception ex)
         {
@@ -147,5 +184,17 @@ public sealed class MainWindowViewModel : ReactiveObject
         var timestamp = DateTime.Now.ToString("HH:mm:ss");
         _log.Append('[').Append(timestamp).Append("] ").AppendLine(line);
         this.RaisePropertyChanged(nameof(LogText));
+    }
+
+    private void UpdateLiveState(MusicalState state)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            CurrentNote = state.Note;
+            CurrentChord = state.Chord;
+            CurrentKey = state.Key;
+            CurrentPitch = $"{state.PitchHz:F1} Hz";
+            CurrentEnergy = state.Energy.ToString("F3");
+        });
     }
 }

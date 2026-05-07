@@ -1,6 +1,6 @@
 using Music2DBridge.Core;
 using Music2DBridge.VTubeStudio;
-using NAudio.Wave;
+using System.Reflection;
 
 namespace Music2DBridge.App;
 
@@ -37,7 +37,7 @@ internal sealed class BridgeRunner
 
     private static readonly string TokenPath = Path.Combine(AppConfigDirectory, "vts-token.txt");
 
-    public async Task RunAsync(string[] args, Action<string>? log, CancellationToken cancellationToken)
+    public async Task RunAsync(string[] args, Action<string>? log, Action<MusicalState>? onState, CancellationToken cancellationToken)
     {
         var fixedKeyConfig = ParseFixedKeyConfig(args);
         var noteOutputConfig = ParseNoteOutputConfig(args);
@@ -73,23 +73,17 @@ internal sealed class BridgeRunner
 
         log?.Invoke("Custom parameters ensured.");
 
-        using var waveIn = new WaveInEvent
-        {
-            WaveFormat = new WaveFormat(SampleRate, BitsPerSample, Channels),
-            BufferMilliseconds = 30,
-            NumberOfBuffers = 3,
-            DeviceNumber = 0
-        };
+        using var micCapture = CreateMicCapture(log);
 
-        waveIn.DataAvailable += (_, e) => MusicAnalyzer.ProcessPcm16Mono(
-            e.Buffer,
-            e.BytesRecorded,
+        micCapture.DataAvailable += (buffer, bytesRecorded) => MusicAnalyzer.ProcessPcm16Mono(
+            buffer,
+            bytesRecorded,
             SampleRate,
             MinPitchHz,
             MaxPitchHz
         );
 
-        waveIn.StartRecording();
+        micCapture.Start();
         log?.Invoke("Connected and recording.");
 
         try
@@ -97,6 +91,7 @@ internal sealed class BridgeRunner
             while (!ct.IsCancellationRequested)
             {
                 var state = MusicAnalyzer.Snapshot();
+                onState?.Invoke(state);
 
                 var pitch01 = MusicAnalyzer.MapClamp(state.PitchHz, 100.0, 500.0, 0.0, 1.0);
                 var energy01 = MusicAnalyzer.MapClamp(state.Energy, 0.01, 0.2, 0.0, 1.0);
@@ -147,7 +142,7 @@ internal sealed class BridgeRunner
         }
         finally
         {
-            waveIn.StopRecording();
+            micCapture.Stop();
             log?.Invoke("Stopped.");
         }
     }
@@ -343,20 +338,45 @@ internal sealed class BridgeRunner
 
     private static string LoadPluginIconBase64()
     {
-        var baseDirectory = AppContext.BaseDirectory;
-        var outputIconPath = Path.Combine(baseDirectory, "icon-128.png");
-        if (File.Exists(outputIconPath))
-        {
-            return Convert.ToBase64String(File.ReadAllBytes(outputIconPath));
-        }
+        var assembly = Assembly.GetExecutingAssembly();
+        var iconResourceName = assembly
+            .GetManifestResourceNames()
+            .FirstOrDefault(n => n.EndsWith("icon-128.png", StringComparison.OrdinalIgnoreCase));
 
-        var sourceIconPath = Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "assets", "icon-128.png"));
-        if (!File.Exists(sourceIconPath))
+        if (iconResourceName is null)
         {
             return string.Empty;
         }
 
-        return Convert.ToBase64String(File.ReadAllBytes(sourceIconPath));
+        using var stream = assembly.GetManifestResourceStream(iconResourceName);
+        if (stream is null)
+        {
+            return string.Empty;
+        }
+
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return Convert.ToBase64String(ms.ToArray());
+    }
+
+    private static IMicCapture CreateMicCapture(Action<string>? log)
+    {
+        try
+        {
+            var openAl = new OpenAlMicCapture(SampleRate, 30);
+            log?.Invoke("Audio backend: OpenAL");
+            return openAl;
+        }
+        catch (DllNotFoundException) when (OperatingSystem.IsWindows())
+        {
+            log?.Invoke("Audio backend: OpenAL unavailable, fallback to NAudio (Windows)");
+            return new NAudioMicCapture(SampleRate, Channels, BitsPerSample, 30);
+        }
+        catch (Exception ex) when (OperatingSystem.IsWindows())
+        {
+            log?.Invoke($"Audio backend: OpenAL init failed ({ex.Message}), fallback to NAudio (Windows)");
+            return new NAudioMicCapture(SampleRate, Channels, BitsPerSample, 30);
+        }
     }
 
     private static string FormatKey(int root, bool isMinor)

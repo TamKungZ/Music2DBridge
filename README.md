@@ -21,10 +21,11 @@ LICENSE
 
 ## Requirements
 
-- Windows
+- Windows / macOS / Linux
 - .NET SDK 9.0+
 - VTube Studio running locally
 - VTube Studio Plugin API enabled
+- OpenAL runtime for microphone capture (for example `libopenal1` on Linux)
 
 In VTube Studio:
 

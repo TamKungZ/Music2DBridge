@@ -56,7 +56,6 @@ jobs:
           -p:SelfContained=true
           -p:DebugType=None
           -p:DebugSymbols=false
-          -p:ApplicationIcon=assets/icon.ico
 
       - name: Self-sign Windows executable
         if: matrix.kind == 'windows'

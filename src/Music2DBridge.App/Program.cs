@@ -21,7 +21,7 @@ internal sealed class Program
 
             var runner = new BridgeRunner();
             Console.WriteLine("Starting Music2DBridge (CLI mode)...");
-            await runner.RunAsync(args, Console.WriteLine, cts.Token);
+            await runner.RunAsync(args, Console.WriteLine, null, cts.Token);
             return 0;
         }
 

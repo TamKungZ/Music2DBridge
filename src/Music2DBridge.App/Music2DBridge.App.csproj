@@ -6,7 +6,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\assets\icon-128.png" Link="icon-128.png" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="..\..\assets\icon-128.png" Link="Assets\icon-128.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -15,6 +15,7 @@
     <PackageReference Include="Avalonia.ReactiveUI" Version="11.3.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.0" />
     <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="OpenTK" Version="4.9.3" />
     <PackageReference Include="ReactiveUI" Version="20.1.63" />
   </ItemGroup>
 
