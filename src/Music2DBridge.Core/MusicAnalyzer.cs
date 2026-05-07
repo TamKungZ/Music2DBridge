@@ -5,17 +5,54 @@ public sealed record MusicalState(
     double Energy,
     int NoteClass,
     string Note,
+    bool InKey,
     string Chord,
-    string Key
+    int ChordRoot,
+    int ChordType,
+    string Key,
+    int KeyRoot,
+    bool KeyIsMinor
 );
 
 public static class MusicAnalyzer
 {
+    private static readonly string[] NoteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    private static readonly int[] MajorTemplate = [0, 2, 4, 5, 7, 9, 11];
+    private static readonly int[] MinorTemplate = [0, 2, 3, 5, 7, 8, 10];
+    private static readonly ChordPattern[] ChordPatterns =
+    [
+        new("maj", [0, 4, 7], 1),
+        new("min", [0, 3, 7], 2),
+        new("dim", [0, 3, 6], 3),
+        new("aug", [0, 4, 8], 4),
+        new("sus2", [0, 2, 7], 5),
+        new("sus4", [0, 5, 7], 5),
+        new("maj7", [0, 4, 7, 11], 1),
+        new("7", [0, 4, 7, 10], 1),
+        new("min7", [0, 3, 7, 10], 2),
+        new("m7b5", [0, 3, 6, 10], 3),
+        new("dim7", [0, 3, 6, 9], 3)
+    ];
+
+    private const double MinimumRmsForTracking = 0.008;
     private static readonly object Gate = new();
     private static readonly Queue<(DateTime Time, int NoteClass)> NoteHistory = new();
 
     private static double _smoothedPitchHz;
     private static double _lastRms;
+    private static bool _fixedKeyEnabled;
+    private static int _fixedKeyRoot;
+    private static bool _fixedKeyMinor;
+
+    public static void ConfigureFixedKeyFilter(bool enabled, int rootNoteClass = 0, bool isMinor = false)
+    {
+        lock (Gate)
+        {
+            _fixedKeyEnabled = enabled;
+            _fixedKeyRoot = NormalizeClass(rootNoteClass);
+            _fixedKeyMinor = isMinor;
+        }
+    }
 
     public static void ProcessPcm16Mono(byte[] buffer, int bytesRecorded, int sampleRate, double minPitchHz, double maxPitchHz)
     {
@@ -47,7 +84,8 @@ public static class MusicAnalyzer
             {
                 _smoothedPitchHz = _smoothedPitchHz <= 0 ? pitch : (0.75 * _smoothedPitchHz) + (0.25 * pitch);
                 var noteClass = FrequencyToMidiClass(_smoothedPitchHz);
-                if (noteClass >= 0)
+                var inKey = !_fixedKeyEnabled || IsNoteInKey(noteClass, _fixedKeyRoot, _fixedKeyMinor);
+                if (noteClass >= 0 && inKey && rms >= MinimumRmsForTracking)
                 {
                     NoteHistory.Enqueue((DateTime.UtcNow, noteClass));
                 }
@@ -67,14 +105,29 @@ public static class MusicAnalyzer
             var pitch = _smoothedPitchHz;
             var rms = _lastRms;
             var noteClass = FrequencyToMidiClass(pitch);
+            var inKey = noteClass >= 0 && (!_fixedKeyEnabled || IsNoteInKey(noteClass, _fixedKeyRoot, _fixedKeyMinor));
+            if (!inKey)
+            {
+                noteClass = -1;
+            }
+
+            var chord = DetectChord(NoteHistory, 1.8);
+            var key = _fixedKeyEnabled
+                ? new KeyDetection(_fixedKeyRoot, _fixedKeyMinor, FormatKey(_fixedKeyRoot, _fixedKeyMinor))
+                : DetectKey(NoteHistory, 6.0);
 
             return new MusicalState(
                 pitch,
                 rms,
                 noteClass,
                 FormatNote(pitch),
-                DetectChord(NoteHistory, 1.8),
-                DetectKey(NoteHistory, 6.0)
+                inKey,
+                chord.Name,
+                chord.Root,
+                chord.Type,
+                key.Name,
+                key.Root,
+                key.IsMinor
             );
         }
     }
@@ -155,20 +208,19 @@ public static class MusicAnalyzer
             return "--";
         }
 
-        string[] names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         int midi = (int)Math.Round(69 + 12 * Math.Log2(freq / 440.0));
         int note = ((midi % 12) + 12) % 12;
         int octave = (midi / 12) - 1;
-        return names[note] + octave;
+        return NoteNames[note] + octave;
     }
 
-    private static string DetectChord(IEnumerable<(DateTime Time, int NoteClass)> history, double secWindow)
+    private static ChordDetection DetectChord(IEnumerable<(DateTime Time, int NoteClass)> history, double secWindow)
     {
         var now = DateTime.UtcNow;
         var window = history.Where(x => (now - x.Time).TotalSeconds <= secWindow).ToList();
-        if (window.Count < 6)
+        if (window.Count < 8)
         {
-            return "--";
+            return ChordDetection.None;
         }
 
         var counts = new int[12];
@@ -177,25 +229,81 @@ public static class MusicAnalyzer
             counts[n]++;
         }
 
-        int root = Array.IndexOf(counts, counts.Max());
-        bool hasMinor3 = counts[(root + 3) % 12] > 0;
-        bool hasMajor3 = counts[(root + 4) % 12] > 0;
-        bool has5 = counts[(root + 7) % 12] > 0;
+        double bestScore = 0;
+        int bestRoot = -1;
+        var bestPattern = default(ChordPattern);
+        var hasBestPattern = false;
 
-        string[] names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        for (int root = 0; root < 12; root++)
+        {
+            foreach (var pattern in ChordPatterns)
+            {
+                var score = ScorePattern(counts, root, pattern);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestRoot = root;
+                    bestPattern = pattern;
+                    hasBestPattern = true;
+                }
+            }
+        }
 
-        if (hasMajor3 && has5) return names[root] + "maj";
-        if (hasMinor3 && has5) return names[root] + "min";
-        return "--";
+        if (!hasBestPattern || bestRoot < 0 || bestScore < 0.58)
+        {
+            return ChordDetection.None;
+        }
+
+        return new ChordDetection(bestRoot, bestPattern.FamilyType, NoteNames[bestRoot] + bestPattern.Suffix);
     }
 
-    private static string DetectKey(IEnumerable<(DateTime Time, int NoteClass)> history, double secWindow)
+    private static double ScorePattern(int[] counts, int root, ChordPattern pattern)
+    {
+        double inPattern = 0;
+        double total = counts.Sum();
+        if (total <= 0)
+        {
+            return 0;
+        }
+
+        for (int i = 0; i < pattern.Intervals.Length; i++)
+        {
+            var note = (root + pattern.Intervals[i]) % 12;
+            var weight = i == 0 ? 1.4 : (i == 1 ? 1.1 : 1.0);
+            inPattern += counts[note] * weight;
+        }
+
+        double outOfPattern = 0;
+        for (int pc = 0; pc < 12; pc++)
+        {
+            bool matched = false;
+            for (int i = 0; i < pattern.Intervals.Length; i++)
+            {
+                if (((root + pattern.Intervals[i]) % 12) == pc)
+                {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched)
+            {
+                outOfPattern += counts[pc];
+            }
+        }
+
+        var normalizedIn = inPattern / (total * 1.4);
+        var penalty = (outOfPattern / total) * 0.55;
+        return normalizedIn - penalty;
+    }
+
+    private static KeyDetection DetectKey(IEnumerable<(DateTime Time, int NoteClass)> history, double secWindow)
     {
         var now = DateTime.UtcNow;
         var window = history.Where(x => (now - x.Time).TotalSeconds <= secWindow).ToList();
         if (window.Count < 12)
         {
-            return "--";
+            return KeyDetection.Unknown;
         }
 
         var counts = new double[12];
@@ -203,9 +311,6 @@ public static class MusicAnalyzer
         {
             counts[n]++;
         }
-
-        int[] majorTemplate = [0, 2, 4, 5, 7, 9, 11];
-        int[] minorTemplate = [0, 2, 3, 5, 7, 8, 10];
 
         double bestScore = double.MinValue;
         int bestRoot = 0;
@@ -216,8 +321,8 @@ public static class MusicAnalyzer
             double maj = 0;
             double min = 0;
 
-            foreach (var p in majorTemplate) maj += counts[(root + p) % 12];
-            foreach (var p in minorTemplate) min += counts[(root + p) % 12];
+            foreach (var p in MajorTemplate) maj += counts[(root + p) % 12];
+            foreach (var p in MinorTemplate) min += counts[(root + p) % 12];
 
             if (maj > bestScore)
             {
@@ -234,7 +339,47 @@ public static class MusicAnalyzer
             }
         }
 
-        string[] names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-        return names[bestRoot] + (bestMinor ? " minor" : " major");
+        return new KeyDetection(bestRoot, bestMinor, FormatKey(bestRoot, bestMinor));
+    }
+
+    private static bool IsNoteInKey(int noteClass, int keyRoot, bool keyIsMinor)
+    {
+        if (noteClass < 0)
+        {
+            return false;
+        }
+
+        var templates = keyIsMinor ? MinorTemplate : MajorTemplate;
+        foreach (var interval in templates)
+        {
+            if (((keyRoot + interval) % 12) == noteClass)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string FormatKey(int root, bool isMinor)
+    {
+        return NoteNames[NormalizeClass(root)] + (isMinor ? " minor" : " major");
+    }
+
+    private static int NormalizeClass(int noteClass)
+    {
+        return ((noteClass % 12) + 12) % 12;
+    }
+
+    private readonly record struct ChordDetection(int Root, int Type, string Name)
+    {
+        public static ChordDetection None => new(-1, 0, "--");
+    }
+
+    private readonly record struct ChordPattern(string Suffix, int[] Intervals, int FamilyType);
+
+    private readonly record struct KeyDetection(int Root, bool IsMinor, string Name)
+    {
+        public static KeyDetection Unknown => new(-1, false, "--");
     }
 }

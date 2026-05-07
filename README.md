@@ -76,8 +76,28 @@ The app injects these parameter IDs:
 - `ParamInstEnergy`
 - `ParamInstPitch`
 - `ParamInstNoteClass`
+- `ParamInstInKey`
+- `ParamInstChordRoot`
+- `ParamInstChordType`
+- `ParamInstKeyRoot`
+- `ParamInstKeyMode`
 
 Ensure your Live2D model / VTube Studio setup uses matching parameter IDs.
+
+## Fixed Key Filter (Optional)
+
+You can lock detection to a key/scale. Notes outside the configured key are ignored by note/chord/key history.
+
+- CLI argument: `--fixed-key=<key>`
+- Environment variable: `M2D_FIXED_KEY=<key>`
+
+Examples:
+
+- `--fixed-key=Cmaj`
+- `--fixed-key=Amin`
+- `M2D_FIXED_KEY=F# minor`
+
+Accepted key formats include major/minor suffixes (`maj`, `major`, `min`, `minor`) and sharps/flats (`C#`, `Bb`, etc.).
 
 ## License
 
