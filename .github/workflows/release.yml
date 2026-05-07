@@ -31,11 +31,13 @@ jobs:
             rid: linux-x64
             kind: linux
             timeout: 20
-          - label: macos-x64
-            os: macos-13
-            rid: osx-x64
-            kind: macos
-            timeout: 2
+          # TEMPORARY DISABLED: macos-x64 runner often stays queued too long.
+          # Re-enable when GitHub macOS x64 capacity is stable again.
+          # - label: macos-x64
+          #   os: macos-13
+          #   rid: osx-x64
+          #   kind: macos
+          #   timeout: 2
           - label: macos-arm64
             os: macos-14
             rid: osx-arm64
