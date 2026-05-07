@@ -12,7 +12,11 @@
 - Added fixed-key filter support via CLI/env (`--fixed-key`, `M2D_FIXED_KEY`).
 - Added cross-platform Avalonia desktop UI with Start/Stop controls and runtime log.
 - Added UI note-mode selector (`class` / `per-note`).
+- Added UI input-device selector with `System Default` fallback to OS default capture device.
 - Added CLI mode support from the same executable via `--cli`.
+- Added input-device selection via CLI/env (`--input-device`, `M2D_INPUT_DEVICE`).
+- Added Windows WASAPI shared-mode capture backend for multi-app input sharing.
+- Improved compatibility with guitar workflows using ASIO host/routing alongside Music2DBridge.
 - Added plugin icon support for VTube Studio auth prompt (128x128 PNG Base64).
 - Added app icon configuration for normal build/publish outputs.
 - Added GitHub Actions release workflow on tag push, publishing Windows/Linux/macOS artifacts.
