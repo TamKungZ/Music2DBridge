@@ -58,6 +58,53 @@ jobs:
           -p:DebugSymbols=false
           -p:ApplicationIcon=assets/icon.ico
 
+      - name: Self-sign Windows executable
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        run: |
+          $publishDir = "src/Music2DBridge.App/bin/Release/net9.0/${{ matrix.rid }}/publish"
+          $exePath = Join-Path $publishDir "Music2DBridge.exe"
+
+          if (-not (Test-Path $exePath)) {
+            throw "Executable not found for signing: $exePath"
+          }
+
+          $signtool = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
+          if (-not $signtool) {
+            $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $signtool) {
+            throw "signtool.exe not found"
+          }
+
+          $cert = New-SelfSignedCertificate \
+            -Type CodeSigningCert \
+            -Subject "CN=TamKungZ_" \
+            -KeyExportPolicy Exportable \
+            -KeyAlgorithm RSA \
+            -KeyLength 2048 \
+            -HashAlgorithm SHA256 \
+            -CertStoreLocation "Cert:\CurrentUser\My" \
+            -NotAfter (Get-Date).AddYears(2)
+
+          $pfxPasswordPlain = "music2d-temp-sign"
+          $pfxPassword = ConvertTo-SecureString -String $pfxPasswordPlain -Force -AsPlainText
+          $pfxPath = Join-Path $env:RUNNER_TEMP "music2d-selfsign.pfx"
+
+          Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $pfxPassword | Out-Null
+
+          & $signtool sign /fd SHA256 /f $pfxPath /p $pfxPasswordPlain /tr http://timestamp.digicert.com /td SHA256 $exePath
+          if ($LASTEXITCODE -ne 0) {
+            throw "signtool sign failed"
+          }
+
+          & $signtool verify /pa /v $exePath
+          if ($LASTEXITCODE -ne 0) {
+            throw "signtool verify failed"
+          }
+
       - name: Stage assets (Windows)
         if: matrix.kind == 'windows'
         shell: pwsh
@@ -65,6 +112,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path release_assets | Out-Null
           $publishDir = "src/Music2DBridge.App/bin/Release/net9.0/${{ matrix.rid }}/publish"
           Copy-Item "$publishDir/Music2DBridge.exe" "release_assets/Music2DBridge-windows-x64.exe"
+
+          $zipStaging = Join-Path $env:RUNNER_TEMP "Music2DBridge-windows-x64"
+          if (Test-Path $zipStaging) {
+            Remove-Item $zipStaging -Recurse -Force
+          }
+
+          Copy-Item $publishDir $zipStaging -Recurse
+          Compress-Archive -Path "$zipStaging\*" -DestinationPath "release_assets/Music2DBridge-windows-x64.zip" -Force
 
       - name: Install Linux packaging tools
         if: matrix.kind == 'linux'
@@ -132,15 +187,6 @@ jobs:
           cp "$PUBLISH_DIR/Music2DBridge" "release_assets/$BIN_NAME"
           chmod +x "release_assets/$BIN_NAME"
 
-      - name: Stage app icon files
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p release_assets
-          cp assets/icon.ico release_assets/Music2DBridge-icon.ico
-          cp assets/icon.icns release_assets/Music2DBridge-icon.icns
-          cp assets/icon-512.png release_assets/Music2DBridge-icon-512.png
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -160,6 +206,40 @@ jobs:
           pattern: release-*
           merge-multiple: true
           path: release_files
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release_files
+          sha256sum * > SHA256SUMS
+
+      - name: Import GPG private key
+        shell: bash
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Sign SHA256SUMS with GPG
+        shell: bash
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          cd release_files
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --armor --detach-sign \
+            --output SHA256SUMS.asc \
+            SHA256SUMS
+
+      - name: Export GPG public key
+        shell: bash
+        run: |
+          set -euo pipefail
+          gpg --batch --yes --armor --export > release_files/GPG-KEY.asc
 
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2
