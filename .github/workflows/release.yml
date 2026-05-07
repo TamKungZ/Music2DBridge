@@ -265,23 +265,27 @@ jobs:
             exit 0
           fi
 
+          # Normalize GitHub secret text: strip UTF-8 BOM and CRLF.
+          normalized_key="${GPG_PRIVATE_KEY#$'\uFEFF'}"
+          normalized_key="${normalized_key//$'\r'/}"
+
           key_file="$RUNNER_TEMP/gpg-private-key.asc"
           decoded_file="$RUNNER_TEMP/gpg-private-key.decoded.asc"
 
           # 1) Raw secret (multiline armored)
-          printf '%s' "$GPG_PRIVATE_KEY" > "$key_file"
+          printf '%s' "$normalized_key" > "$key_file"
           if gpg --batch --import "$key_file"; then
             exit 0
           fi
 
           # 2) Armored key stored as one line with literal \n
-          printf '%b' "$GPG_PRIVATE_KEY" > "$decoded_file"
+          printf '%b' "$normalized_key" > "$decoded_file"
           if gpg --batch --import "$decoded_file"; then
             exit 0
           fi
 
           # 3) Base64-encoded key (common in shared org secrets)
-          if printf '%s' "$GPG_PRIVATE_KEY" | tr -d '\r\n\t ' | base64 -d > "$decoded_file" 2>/dev/null; then
+          if printf '%s' "$normalized_key" | tr -d '\r\n\t ' | base64 -d > "$decoded_file" 2>/dev/null; then
             if gpg --batch --import "$decoded_file"; then
               exit 0
             fi
