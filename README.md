@@ -71,11 +71,10 @@ src/Music2DBridge.App/bin/Release/net9.0/win-x64/publish/
 
 ## Current Parameter Mapping
 
-The app injects these parameter IDs:
+The app always injects these parameter IDs:
 
 - `ParamInstEnergy`
 - `ParamInstPitch`
-- `ParamInstNoteClass`
 - `ParamInstInKey`
 - `ParamInstChordRoot`
 - `ParamInstChordType`
@@ -83,6 +82,42 @@ The app injects these parameter IDs:
 - `ParamInstKeyMode`
 
 Ensure your Live2D model / VTube Studio setup uses matching parameter IDs.
+
+### Note Output Modes
+
+Use `--note-mode=<mode>` or `M2D_NOTE_MODE=<mode>` to choose note output behavior.
+
+- `class` (default): injects `ParamInstNoteClass` directly as note class value `0..11`
+- `per-note`: injects 12 note parameters in range `0..1` for deep rig/chord alignment
+
+`per-note` mode parameter prefix can be configured with:
+
+- CLI argument: `--note-params-prefix=<prefix>`
+- Environment variable: `M2D_NOTE_PARAMS_PREFIX=<prefix>`
+
+If prefix is not set, default prefix is `ParamInstNote`.
+
+In `per-note` mode, the app injects these 12 parameters:
+
+- `<prefix>C`
+- `<prefix>Cs`
+- `<prefix>D`
+- `<prefix>Ds`
+- `<prefix>E`
+- `<prefix>F`
+- `<prefix>Fs`
+- `<prefix>G`
+- `<prefix>Gs`
+- `<prefix>A`
+- `<prefix>As`
+- `<prefix>B`
+
+Example:
+
+- `--note-mode=per-note`
+- `--note-mode=per-note --note-params-prefix=ParamInstNote`
+
+This creates `ParamInstNoteC`, `ParamInstNoteCs`, ..., `ParamInstNoteB`.
 
 ## Fixed Key Filter (Optional)
 

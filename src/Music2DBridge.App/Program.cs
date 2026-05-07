@@ -24,6 +24,8 @@ internal sealed class Program
     private const string ParamChordType = "ParamInstChordType";
     private const string ParamKeyRoot = "ParamInstKeyRoot";
     private const string ParamKeyMode = "ParamInstKeyMode";
+    private const string DefaultPerNotePrefix = "ParamInstNote";
+    private static readonly string[] NoteParamSuffixes = ["C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B"];
 
     private static readonly string AppConfigDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -38,12 +40,16 @@ internal sealed class Program
         Console.WriteLine("Starting Music2DBridge...");
 
         var fixedKeyConfig = ParseFixedKeyConfig(args);
+        var noteOutputConfig = ParseNoteOutputConfig(args);
         MusicAnalyzer.ConfigureFixedKeyFilter(fixedKeyConfig.Enabled, fixedKeyConfig.Root, fixedKeyConfig.IsMinor);
         Console.WriteLine(
             fixedKeyConfig.Enabled
                 ? $"Fixed key filter: ON ({FormatKey(fixedKeyConfig.Root, fixedKeyConfig.IsMinor)})"
                 : "Fixed key filter: OFF"
         );
+        Console.WriteLine(noteOutputConfig.Mode == NoteOutputMode.PerNote
+            ? $"Note mode: per-note (prefix: {noteOutputConfig.Prefix})"
+            : "Note mode: class (ParamInstNoteClass)");
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
@@ -85,7 +91,7 @@ internal sealed class Program
 
                 var pitch01 = MusicAnalyzer.MapClamp(state.PitchHz, 100.0, 500.0, 0.0, 1.0);
                 var energy01 = MusicAnalyzer.MapClamp(state.Energy, 0.01, 0.2, 0.0, 1.0);
-                var noteClass01 = state.NoteClass >= 0 ? state.NoteClass / 11.0 : 0.0;
+                var noteClassValue = state.NoteClass >= 0 ? state.NoteClass : 0.0;
                 var inKey01 = state.InKey ? 1.0 : 0.0;
                 var chordRoot01 = state.ChordRoot >= 0 ? state.ChordRoot / 11.0 : 0.0;
                 var chordType01 = state.ChordType > 0
@@ -94,19 +100,31 @@ internal sealed class Program
                 var keyRoot01 = state.KeyRoot >= 0 ? state.KeyRoot / 11.0 : 0.0;
                 var keyMode01 = state.KeyIsMinor ? 1.0 : 0.0;
 
-                await vts.InjectParametersAsync(
-                    [
-                        (ParamEnergy, energy01, 1.0),
-                        (ParamPitch, pitch01, 1.0),
-                        (ParamNoteClass, noteClass01, 1.0),
-                        (ParamInKey, inKey01, 1.0),
-                        (ParamChordRoot, chordRoot01, 1.0),
-                        (ParamChordType, chordType01, 1.0),
-                        (ParamKeyRoot, keyRoot01, 1.0),
-                        (ParamKeyMode, keyMode01, 1.0)
-                    ],
-                    cts.Token
-                );
+                var parameters = new List<(string Id, double Value, double Weight)>
+                {
+                    (ParamEnergy, energy01, 1.0),
+                    (ParamPitch, pitch01, 1.0),
+                    (ParamInKey, inKey01, 1.0),
+                    (ParamChordRoot, chordRoot01, 1.0),
+                    (ParamChordType, chordType01, 1.0),
+                    (ParamKeyRoot, keyRoot01, 1.0),
+                    (ParamKeyMode, keyMode01, 1.0)
+                };
+
+                if (noteOutputConfig.Mode == NoteOutputMode.PerNote)
+                {
+                    var notePresence = BuildNotePresence(state);
+                    for (var i = 0; i < 12; i++)
+                    {
+                        parameters.Add(($"{noteOutputConfig.Prefix}{NoteParamSuffixes[i]}", notePresence[i], 1.0));
+                    }
+                }
+                else
+                {
+                    parameters.Add((ParamNoteClass, noteClassValue, 1.0));
+                }
+
+                await vts.InjectParametersAsync(parameters, cts.Token);
 
                 Console.WriteLine(
                     $"Pitch: {state.PitchHz,7:F1} Hz | Note: {state.Note,3} | InKey: {(state.InKey ? "Y" : "N")} | Chord: {state.Chord,-6} | Key: {state.Key,-9} | Energy: {state.Energy:F3}"
@@ -150,6 +168,92 @@ internal sealed class Program
         }
 
         return new FixedKeyConfig(true, root, isMinor);
+    }
+
+    private static NoteOutputConfig ParseNoteOutputConfig(string[] args)
+    {
+        string? mode = null;
+        string? prefix = null;
+
+        foreach (var arg in args)
+        {
+            if (arg.StartsWith("--note-mode=", StringComparison.OrdinalIgnoreCase))
+            {
+                mode = arg["--note-mode=".Length..];
+                continue;
+            }
+
+            if (arg.StartsWith("--note-params-prefix=", StringComparison.OrdinalIgnoreCase))
+            {
+                prefix = arg["--note-params-prefix=".Length..];
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            mode = Environment.GetEnvironmentVariable("M2D_NOTE_MODE");
+        }
+
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            mode = "class";
+        }
+
+        var normalizedMode = mode.Trim().ToLowerInvariant();
+        var resolvedMode = normalizedMode switch
+        {
+            "class" => NoteOutputMode.Class,
+            "noteclass" => NoteOutputMode.Class,
+            "per-note" => NoteOutputMode.PerNote,
+            "pernote" => NoteOutputMode.PerNote,
+            "split" => NoteOutputMode.PerNote,
+            _ => NoteOutputMode.Class
+        };
+
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            prefix = Environment.GetEnvironmentVariable("M2D_NOTE_PARAMS_PREFIX");
+        }
+
+        var resolvedPrefix = string.IsNullOrWhiteSpace(prefix) ? DefaultPerNotePrefix : prefix.Trim();
+
+        return new NoteOutputConfig(resolvedMode, resolvedPrefix);
+    }
+
+    private static double[] BuildNotePresence(MusicalState state)
+    {
+        var presence = new double[12];
+
+        if (state.NoteClass >= 0)
+        {
+            presence[state.NoteClass] = 1.0;
+        }
+
+        if (state.ChordRoot < 0 || state.ChordType <= 0)
+        {
+            return presence;
+        }
+
+        foreach (var interval in GetChordIntervals(state.ChordType))
+        {
+            var noteClass = (state.ChordRoot + interval) % 12;
+            presence[noteClass] = 1.0;
+        }
+
+        return presence;
+    }
+
+    private static int[] GetChordIntervals(int chordType)
+    {
+        return chordType switch
+        {
+            1 => [0, 4, 7],
+            2 => [0, 3, 7],
+            3 => [0, 3, 6],
+            4 => [0, 4, 8],
+            5 => [0, 5, 7],
+            _ => []
+        };
     }
 
     private static bool TryParseKeySpec(string? spec, out int root, out bool isMinor)
@@ -228,4 +332,11 @@ internal sealed class Program
     }
 
     private readonly record struct FixedKeyConfig(bool Enabled, int Root, bool IsMinor);
+    private readonly record struct NoteOutputConfig(NoteOutputMode Mode, string Prefix);
+
+    private enum NoteOutputMode
+    {
+        Class,
+        PerNote
+    }
 }
