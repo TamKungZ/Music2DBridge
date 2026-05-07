@@ -70,8 +70,8 @@ jobs:
           -p:DebugSymbols=false
           -o artifacts/windows-single
 
-      - name: Self-sign Windows executable
-        if: matrix.kind == 'windows'
+      - name: Self-sign Windows executable (disabled)
+        if: ${{ false }}
         shell: pwsh
         run: |
           $publishDir = "src/Music2DBridge.App/bin/Release/net9.0/${{ matrix.rid }}/publish"
