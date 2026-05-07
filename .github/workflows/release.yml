@@ -253,14 +253,20 @@ jobs:
           sha256sum * > SHA256SUMS
 
       - name: Import GPG private key
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' && secrets.GPG_PASSPHRASE != '' }}
         shell: bash
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          if printf '%s' "$GPG_PRIVATE_KEY" | grep -q "BEGIN PGP PRIVATE KEY BLOCK"; then
+            printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          else
+            printf '%s' "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          fi
 
       - name: Sign SHA256SUMS with GPG
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' && secrets.GPG_PASSPHRASE != '' }}
         shell: bash
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -274,10 +280,17 @@ jobs:
             SHA256SUMS
 
       - name: Export GPG public key
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' && secrets.GPG_PASSPHRASE != '' }}
         shell: bash
         run: |
           set -euo pipefail
           gpg --batch --yes --armor --export > release_files/GPG-KEY.asc
+
+      - name: Skip GPG signing (no secrets)
+        if: ${{ secrets.GPG_PRIVATE_KEY == '' || secrets.GPG_PASSPHRASE == '' }}
+        shell: bash
+        run: |
+          echo "GPG signing skipped: GPG_PRIVATE_KEY or GPG_PASSPHRASE is not configured."
 
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2
