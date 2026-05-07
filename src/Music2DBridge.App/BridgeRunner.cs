@@ -42,6 +42,7 @@ internal sealed class BridgeRunner
         var fixedKeyConfig = ParseFixedKeyConfig(args);
         var noteOutputConfig = ParseNoteOutputConfig(args);
         var gainConfig = ParseGainConfig(args);
+        var gateConfig = ParseGateConfig(args);
 
         MusicAnalyzer.ConfigureFixedKeyFilter(fixedKeyConfig.Enabled, fixedKeyConfig.Root, fixedKeyConfig.IsMinor);
 
@@ -55,6 +56,7 @@ internal sealed class BridgeRunner
             ? $"Note mode: per-note (prefix: {PerNotePrefix})"
             : "Note mode: class (ParamInstNoteClass)");
         log?.Invoke($"Input gain: {gainConfig.Gain:F2}x");
+        log?.Invoke($"Noise gate: {gateConfig.Threshold:F3}");
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var ct = linkedCts.Token;
@@ -98,7 +100,7 @@ internal sealed class BridgeRunner
         {
             while (!ct.IsCancellationRequested)
             {
-                var state = MusicAnalyzer.Snapshot();
+                var state = ApplyNoiseGate(MusicAnalyzer.Snapshot(), gateConfig.Threshold);
                 onState?.Invoke(state);
 
                 var pitch01 = MusicAnalyzer.MapClamp(state.PitchHz, 100.0, 500.0, 0.0, 1.0);
@@ -240,6 +242,54 @@ internal sealed class BridgeRunner
 
         gain = Math.Clamp(gain, 0.1, 8.0);
         return new GainConfig(gain);
+    }
+
+    private static GateConfig ParseGateConfig(string[] args)
+    {
+        string? gateRaw = null;
+        foreach (var arg in args)
+        {
+            if (arg.StartsWith("--gate=", StringComparison.OrdinalIgnoreCase))
+            {
+                gateRaw = arg["--gate=".Length..];
+                break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(gateRaw))
+        {
+            gateRaw = Environment.GetEnvironmentVariable("M2D_GATE");
+        }
+
+        if (!double.TryParse(gateRaw, out var gate))
+        {
+            gate = 0.01;
+        }
+
+        gate = Math.Clamp(gate, 0.0, 0.08);
+        return new GateConfig(gate);
+    }
+
+    private static MusicalState ApplyNoiseGate(MusicalState state, double threshold)
+    {
+        if (state.Energy >= threshold)
+        {
+            return state;
+        }
+
+        return state with
+        {
+            PitchHz = 0.0,
+            NoteClass = -1,
+            Note = "--",
+            InKey = false,
+            Chord = "--",
+            ChordRoot = -1,
+            ChordType = 0,
+            Key = "--",
+            KeyRoot = -1,
+            KeyIsMinor = false
+        };
     }
 
     private static void EnsureBufferSize(ref byte[] buffer, int requiredBytes)
@@ -444,6 +494,7 @@ internal sealed class BridgeRunner
     private readonly record struct FixedKeyConfig(bool Enabled, int Root, bool IsMinor);
     private readonly record struct NoteOutputConfig(NoteOutputMode Mode);
     private readonly record struct GainConfig(double Gain);
+    private readonly record struct GateConfig(double Threshold);
     private readonly record struct ParameterDefinition(string Id, double Min, double Max, double DefaultValue, string Explanation);
 
     private enum NoteOutputMode

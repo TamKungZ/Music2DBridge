@@ -2,8 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Music2DBridge.App.MainWindow"
         Title="Music2DBridge"
-        Width="900"
-        Height="620"
+        Width="1080"
+        Height="744"
         MinWidth="760"
         MinHeight="500">
   <Grid RowDefinitions="Auto,Auto,*" Margin="16">
@@ -26,6 +26,13 @@
               Value="{Binding InputGain}"
               IsEnabled="{Binding IsStopped}" />
       <TextBlock VerticalAlignment="Center" Text="{Binding InputGainText}" />
+      <TextBlock VerticalAlignment="Center" Text="Gate:" Margin="8,0,0,0" />
+      <Slider Width="120"
+              Minimum="0.0"
+              Maximum="0.08"
+              Value="{Binding NoiseGate}"
+              IsEnabled="{Binding IsStopped}" />
+      <TextBlock VerticalAlignment="Center" Text="{Binding NoiseGateText}" />
       <Button Content="+" Width="36"
               Command="{Binding EnableFixedKeyCommand}"
               IsVisible="{Binding ShowFixedKeyAddButton}" />

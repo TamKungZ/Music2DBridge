@@ -52,10 +52,23 @@ jobs:
           dotnet publish ${{ env.PROJECT_PATH }}
           -c Release
           -r ${{ matrix.rid }}
-          -p:PublishSingleFile=true
           -p:SelfContained=true
           -p:DebugType=None
           -p:DebugSymbols=false
+
+      - name: Publish Windows single-file exe
+        if: matrix.kind == 'windows'
+        run: >
+          dotnet publish ${{ env.PROJECT_PATH }}
+          -c Release
+          -r ${{ matrix.rid }}
+          -p:SelfContained=true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:IncludeAllContentForSelfExtract=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -o artifacts/windows-single
 
       - name: Self-sign Windows executable
         if: matrix.kind == 'windows'
@@ -63,9 +76,13 @@ jobs:
         run: |
           $publishDir = "src/Music2DBridge.App/bin/Release/net9.0/${{ matrix.rid }}/publish"
           $exePath = Join-Path $publishDir "Music2DBridge.exe"
+          $singleExePath = "artifacts/windows-single/Music2DBridge.exe"
 
           if (-not (Test-Path $exePath)) {
             throw "Executable not found for signing: $exePath"
+          }
+          if (-not (Test-Path $singleExePath)) {
+            throw "Single-file executable not found for signing: $singleExePath"
           }
 
           $signtool = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
@@ -99,9 +116,19 @@ jobs:
             throw "signtool sign failed"
           }
 
+          & $signtool sign /fd SHA256 /f $pfxPath /p $pfxPasswordPlain /tr http://timestamp.digicert.com /td SHA256 $singleExePath
+          if ($LASTEXITCODE -ne 0) {
+            throw "signtool sign failed (single-file exe)"
+          }
+
           & $signtool verify /pa /v $exePath
           if ($LASTEXITCODE -ne 0) {
             throw "signtool verify failed"
+          }
+
+          & $signtool verify /pa /v $singleExePath
+          if ($LASTEXITCODE -ne 0) {
+            throw "signtool verify failed (single-file exe)"
           }
 
       - name: Stage assets (Windows)
@@ -110,7 +137,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release_assets | Out-Null
           $publishDir = "src/Music2DBridge.App/bin/Release/net9.0/${{ matrix.rid }}/publish"
-          Copy-Item "$publishDir/Music2DBridge.exe" "release_assets/Music2DBridge-windows-x64.exe"
+          Copy-Item "artifacts/windows-single/Music2DBridge.exe" "release_assets/Music2DBridge-windows-x64.exe"
 
           $zipStaging = Join-Path $env:RUNNER_TEMP "Music2DBridge-windows-x64"
           if (Test-Path $zipStaging) {

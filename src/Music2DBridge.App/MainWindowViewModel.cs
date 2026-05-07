@@ -26,6 +26,7 @@ public sealed class MainWindowViewModel : ReactiveObject
     private bool _isFixedKeyEnabled;
     private string _fixedKeySpec = "Cmaj";
     private double _inputGain = 1.0;
+    private double _noiseGate = 0.01;
     private string _currentNote = "--";
     private string _currentChord = "--";
     private string _currentKey = "--";
@@ -109,6 +110,18 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     public string InputGainText => $"{InputGain:F2}x";
 
+    public double NoiseGate
+    {
+        get => _noiseGate;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _noiseGate, Math.Clamp(value, 0.0, 0.08));
+            this.RaisePropertyChanged(nameof(NoiseGateText));
+        }
+    }
+
+    public string NoiseGateText => NoiseGate.ToString("F3");
+
     public string CurrentNote
     {
         get => _currentNote;
@@ -152,7 +165,8 @@ public sealed class MainWindowViewModel : ReactiveObject
             var args = new List<string>
             {
                 $"--note-mode={SelectedNoteMode}",
-                $"--gain={InputGain:F2}"
+                $"--gain={InputGain:F2}",
+                $"--gate={NoiseGate:F3}"
             };
 
             if (IsFixedKeyEnabled)
