@@ -56,6 +56,7 @@ jobs:
           -p:SelfContained=true
           -p:DebugType=None
           -p:DebugSymbols=false
+          -p:ApplicationIcon=assets/icon.ico
 
       - name: Stage assets (Windows)
         if: matrix.kind == 'windows'
@@ -112,9 +113,8 @@ jobs:
           Terminal=false
           EOF
 
-          # Tiny fallback icon
-          ICON_B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0XcAAAAASUVORK5CYII="
-          echo "$ICON_B64" | base64 -d > "$APPDIR/Music2DBridge.png"
+          # Real app icon from repository assets
+          cp "assets/icon-512.png" "$APPDIR/Music2DBridge.png"
           cp "$APPDIR/Music2DBridge.png" "$APPDIR/.DirIcon"
 
           APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool "$APPDIR" "release_assets/Music2DBridge-linux-x64.AppImage"
@@ -131,6 +131,15 @@ jobs:
 
           cp "$PUBLISH_DIR/Music2DBridge" "release_assets/$BIN_NAME"
           chmod +x "release_assets/$BIN_NAME"
+
+      - name: Stage app icon files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release_assets
+          cp assets/icon.ico release_assets/Music2DBridge-icon.ico
+          cp assets/icon.icns release_assets/Music2DBridge-icon.icns
+          cp assets/icon-512.png release_assets/Music2DBridge-icon-512.png
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v5

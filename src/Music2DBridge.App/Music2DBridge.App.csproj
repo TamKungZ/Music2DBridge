@@ -21,6 +21,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Music2DBridge</AssemblyName>
     <RootNamespace>Music2DBridge</RootNamespace>
+    <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
