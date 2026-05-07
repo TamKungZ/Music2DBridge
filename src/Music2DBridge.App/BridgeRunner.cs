@@ -344,13 +344,13 @@ internal sealed class BridgeRunner
     private static string LoadPluginIconBase64()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var outputIconPath = Path.Combine(baseDirectory, "icon-256.png");
+        var outputIconPath = Path.Combine(baseDirectory, "icon-128.png");
         if (File.Exists(outputIconPath))
         {
             return Convert.ToBase64String(File.ReadAllBytes(outputIconPath));
         }
 
-        var sourceIconPath = Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "assets", "icon-256.png"));
+        var sourceIconPath = Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "assets", "icon-128.png"));
         if (!File.Exists(sourceIconPath))
         {
             return string.Empty;

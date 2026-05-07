@@ -1,0 +1,18 @@
+# CHANGE
+
+## 1.0.0 - 2026-05-07
+
+- Initial public release of Music2DBridge.
+- Added realtime microphone audio analysis pipeline (pitch, energy, note class, chord, key).
+- Added VTube Studio WebSocket integration with authentication token caching.
+- Added automatic custom-parameter creation in VTube Studio for bridge parameters.
+- Added dual note output modes:
+  - `class`: single parameter `ParamInstNoteClass` with values `0..11`.
+  - `per-note`: per-note parameters `ParamInstNoteC` ... `ParamInstNoteB` with values `0..1`.
+- Added fixed-key filter support via CLI/env (`--fixed-key`, `M2D_FIXED_KEY`).
+- Added cross-platform Avalonia desktop UI with Start/Stop controls and runtime log.
+- Added UI note-mode selector (`class` / `per-note`).
+- Added CLI mode support from the same executable via `--cli`.
+- Added plugin icon support for VTube Studio auth prompt (128x128 PNG Base64).
+- Added app icon configuration for normal build/publish outputs.
+- Added GitHub Actions release workflow on tag push, publishing Windows/Linux/macOS artifacts.

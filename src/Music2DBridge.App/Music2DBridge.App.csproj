@@ -6,7 +6,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\assets\icon-256.png" Link="icon-256.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\icon-128.png" Link="icon-128.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

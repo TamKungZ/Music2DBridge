@@ -38,10 +38,10 @@ public sealed class VtsClient : IAsyncDisposable
         await SendJsonAsync(tokenRequest, ct);
         using var tokenResp = await ReceiveJsonAsync(ct);
 
-        token = tokenResp.RootElement.GetProperty("data").GetProperty("authenticationToken").GetString();
+        token = TryReadString(tokenResp.RootElement, "authenticationToken");
         if (string.IsNullOrWhiteSpace(token))
         {
-            throw new InvalidOperationException("Failed to receive authentication token from VTube Studio.");
+            throw new InvalidOperationException($"Failed to receive authentication token from VTube Studio. Response: {tokenResp.RootElement.GetRawText()}");
         }
 
         if (!await TryAuthenticateWithTokenAsync(pluginName, pluginDeveloper, token, ct))
@@ -76,7 +76,16 @@ public sealed class VtsClient : IAsyncDisposable
         await SendJsonAsync(authRequest, ct);
         using var authResp = await ReceiveJsonAsync(ct);
 
-        var ok = authResp.RootElement.GetProperty("data").GetProperty("authenticated").GetBoolean();
+        var ok = TryReadBool(authResp.RootElement, "authenticated");
+        if (!ok)
+        {
+            var message = TryReadString(authResp.RootElement, "message");
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                throw new InvalidOperationException($"Authentication rejected by VTube Studio: {message}");
+            }
+        }
+
         return ok;
     }
 
@@ -156,5 +165,27 @@ public sealed class VtsClient : IAsyncDisposable
         }
 
         _ws.Dispose();
+    }
+
+    private static string? TryReadString(JsonElement root, string key)
+    {
+        if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object &&
+            data.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString();
+        }
+
+        return null;
+    }
+
+    private static bool TryReadBool(JsonElement root, string key)
+    {
+        if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object &&
+            data.TryGetProperty(key, out var value) && (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False))
+        {
+            return value.GetBoolean();
+        }
+
+        return false;
     }
 }

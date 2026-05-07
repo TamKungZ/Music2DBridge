@@ -14,6 +14,27 @@
     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" Margin="0,12,0,12">
       <Button Content="Start" Command="{Binding StartCommand}" IsEnabled="{Binding IsStopped}" Width="120" />
       <Button Content="Stop" Command="{Binding StopCommand}" IsEnabled="{Binding IsRunning}" Width="120" />
+      <TextBlock VerticalAlignment="Center" Text="Note mode:" Margin="8,0,0,0" />
+      <ComboBox Width="140"
+                ItemsSource="{Binding AvailableNoteModes}"
+                SelectedItem="{Binding SelectedNoteMode}"
+                IsEnabled="{Binding IsStopped}" />
+      <Button Content="+" Width="36"
+              Command="{Binding EnableFixedKeyCommand}"
+              IsVisible="{Binding ShowFixedKeyAddButton}" />
+      <TextBlock VerticalAlignment="Center"
+                 Text="(fixed key)"
+                 Margin="8,0,0,0"
+                 IsVisible="{Binding ShowFixedKeyLabel}" />
+      <ComboBox Width="110"
+                ItemsSource="{Binding AvailableFixedKeys}"
+                SelectedItem="{Binding FixedKeySpec}"
+                IsVisible="{Binding ShowFixedKeyEditor}"
+                IsEnabled="{Binding IsStopped}" />
+      <Button Content="-" Width="36"
+              Command="{Binding DisableFixedKeyCommand}"
+              IsVisible="{Binding ShowFixedKeyEditor}"
+              IsEnabled="{Binding IsStopped}" />
       <TextBlock VerticalAlignment="Center" Text="{Binding StatusText}" />
     </StackPanel>
 
