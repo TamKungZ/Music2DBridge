@@ -95,14 +95,14 @@ jobs:
             throw "signtool.exe not found"
           }
 
-          $cert = New-SelfSignedCertificate \
-            -Type CodeSigningCert \
-            -Subject "CN=TamKungZ_" \
-            -KeyExportPolicy Exportable \
-            -KeyAlgorithm RSA \
-            -KeyLength 2048 \
-            -HashAlgorithm SHA256 \
-            -CertStoreLocation "Cert:\CurrentUser\My" \
+          $cert = New-SelfSignedCertificate `
+            -Type CodeSigningCert `
+            -Subject "CN=TamKungZ_" `
+            -KeyExportPolicy Exportable `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
             -NotAfter (Get-Date).AddYears(2)
 
           $pfxPasswordPlain = "music2d-temp-sign"
