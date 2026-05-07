@@ -265,11 +265,30 @@ jobs:
             exit 0
           fi
 
-          if printf '%s' "$GPG_PRIVATE_KEY" | grep -q "BEGIN PGP PRIVATE KEY BLOCK"; then
-            printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
-          else
-            printf '%s' "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          key_file="$RUNNER_TEMP/gpg-private-key.asc"
+          decoded_file="$RUNNER_TEMP/gpg-private-key.decoded.asc"
+
+          # 1) Raw secret (multiline armored)
+          printf '%s' "$GPG_PRIVATE_KEY" > "$key_file"
+          if gpg --batch --import "$key_file"; then
+            exit 0
           fi
+
+          # 2) Armored key stored as one line with literal \n
+          printf '%b' "$GPG_PRIVATE_KEY" > "$decoded_file"
+          if gpg --batch --import "$decoded_file"; then
+            exit 0
+          fi
+
+          # 3) Base64-encoded key (common in shared org secrets)
+          if printf '%s' "$GPG_PRIVATE_KEY" | tr -d '\r\n\t ' | base64 -d > "$decoded_file" 2>/dev/null; then
+            if gpg --batch --import "$decoded_file"; then
+              exit 0
+            fi
+          fi
+
+          echo "Failed to import GPG private key in all supported formats (raw armored, escaped-newline armored, base64)."
+          exit 1
 
       - name: Sign SHA256SUMS with GPG
         shell: bash
